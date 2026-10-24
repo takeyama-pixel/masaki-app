@@ -49,9 +49,8 @@ elif menu == "施術記録の閲覧・登録":
     )
 
     st.markdown("---")
-    st.write("📸 **[頭部・上面分析用] 切り抜き位置の調整**")
-    crop_top = st.slider("上からの切り抜きオフセット (%)", 0, 50, 15)  # 上を削る割合
-    crop_side = st.slider("左右の切り抜き幅 (%)", 0, 40, 20)  # 左右を削る割合
+    st.write("📸 **[頭部・上面分析] 自動中心検出モード稼働中**")
+    st.caption("スマホで頭部が中央に来るように撮影してください。")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -88,23 +87,36 @@ elif menu == "施術記録の閲覧・登録":
           img_np = np.array(image_pil)
           h, w, _ = img_np.shape
 
-          margin_h = int(h * (crop_top / 100.0))
-          margin_w = int(w * (crop_side / 100.0))
-
-          cropped_img = img_np[margin_h : h - margin_h, margin_w : w - margin_w]
-
-          gray = cv2.cvtColor(cropped_img, cv2.COLOR_RGB2GRAY)
+          gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
           _, thresh = cv2.threshold(gray, 110, 255, cv2.THRESH_BINARY_INV)
           contours, _ = cv2.findContours(
               thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
           )
 
           if contours:
-            c = max(contours, key=cv2.contourArea)
-            if len(c) >= 5:
-              ellipse = cv2.fitEllipse(c)
+            img_center_x, img_center_y = w / 2, h / 2
+            best_c = None
+            min_score = float("inf")
 
-              analyzed_img = cropped_img.copy()
+            # 💡 魔法の改良：単に大きいだけでなく、「画像の中央付近に位置している輪郭」を頭部として採用する
+            for c in contours:
+              if cv2.contourArea(c) > (w * h * 0.05):  -  # ある程度の大きさがあるもの
+                M = cv2.moments(c)
+                if M["m00"] > 0:
+                  cx = M["m10"] / M["m00"]
+                  cy = M["m01"] / M["m00"]
+                  # 画像中心からの距離をスコアにする（近いほど優秀）
+                  distance_from_center = (cx - img_center_x) ** 2 + (
+                      cy - img_center_y
+                  ) ** 2
+                  if distance_from_center < min_score:
+                    min_score = distance_from_center
+                    best_c = c
+
+            if best_c is not None and len(best_c) >= 5:
+              ellipse = cv2.fitEllipse(best_c)
+
+              analyzed_img = img_np.copy()
               cv2.ellipse(analyzed_img, ellipse, (0, 255, 0), 3)
 
               center = (int(ellipse[0][0]), int(ellipse[0][1]))
@@ -175,13 +187,13 @@ elif menu == "施術記録の閲覧・登録":
       if "analysis" in rec and rec["analysis"]:
         if "asymmetry_score" in rec["analysis"]:
           st.metric(
-              label="頭部 上面歪み指数 (調整機能付き)",
+              label="頭部 上面歪み指数 (中心自動検出)",
               value=f"{rec['analysis']['asymmetry_score']} %",
           )
 
       c1, c2 = st.columns(2)
       with c1:
-        st.text("【Before（分析線入り）】")
+        st.text("【Before（中心自動検出・分析線入り）】")
         target_img = (
             rec["analysis"].get("analyzed_image")
             if (rec.get("analysis") and "analyzed_image" in rec["analysis"])
