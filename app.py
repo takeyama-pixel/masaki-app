@@ -1,5 +1,4 @@
 from datetime import datetime
-import json
 import os
 import cv2
 import numpy as np
@@ -67,13 +66,11 @@ elif menu == "施術記録の閲覧・登録":
   asymmetry_score = 8.5  # ゆがみ度（%）
   brachycephalic_score = 88.2  # 短頭度（%）
 
-  # 🎯 頭部・上面分析が選ばれた場合、最初からガイド枠が表示されるキャンバス
+  # 🎯 頭部・上面分析が選ばれた場合
   if body_part == "頭部・上面（歪み分析）" and before_file:
     st.markdown("---")
     st.markdown("### 🎯 【頭部位置・ガイド調整】")
-    st.caption(
-        "写真の上に表示される緑色のガイド枠を指でタッチして、頭の位置に合わせてください。"
-    )
+    st.caption("写真を確認しながら、頭部の位置を調整できます。")
 
     try:
       image_pil = Image.open(before_file).convert("RGB")
@@ -92,36 +89,17 @@ elif menu == "施術記録の閲覧・登録":
           (canvas_w, canvas_h), Image.Resampling.LANCZOS
       )
 
-      # 💡 最初から画面中央に表示されるガイド枠（初期オブジェクト）の設定
-      initial_drawing = {
-          "version": "4.4.0",
-          "objects": [
-              {
-                  "type": "rect",
-                  "left": canvas_w * 0.15,
-                  "top": canvas_h * 0.15,
-                  "width": canvas_w * 0.7,
-                  "height": canvas_h * 0.7,
-                  "fill": "rgba(255, 165, 0, 0.2)",
-                  "stroke": "#00FF00",
-                  "strokeWidth": 3,
-                  "angle": 0,
-              }
-          ],
-      }
-
-      # タッチ操作・枠調整用キャンバス
+      # 💡 廃止された引数やトラブルの起きる設定をすべて排除した安全なキャンバス
       canvas_result = st_canvas(
           fill_color="rgba(255, 165, 0, 0.3)",
           stroke_width=2,
           stroke_color="#00FF00",
           background_image=image_resized,
-          initial_drawing=initial_drawing,  # ← ここで初期ガイド枠を配置！
           update_streamlit=True,
           height=canvas_h,
           width=canvas_w,
-          drawing_mode="transform",  # ※環境によってエラーになる場合は "rect" に自動フォールバックされますが一旦transformで配置
-          key="safe_canvas_v6",
+          drawing_mode="rect",
+          key="safe_canvas_v7_final",
       )
     except Exception as e:
       st.error(f"画像の読み込みに失敗しました: {e}")
