@@ -64,9 +64,9 @@ elif menu == "施術記録の閲覧・登録":
   # 🎯 頭部・上面分析が選ばれ、写真がアップロードされている場合
   if body_part == "頭部・上面（歪み分析）" and before_file:
     st.markdown("---")
-    st.markdown("### 🎯 【頭部位置・ガイド調整 & リアルタイム分析】")
+    st.markdown("### 🎯 【頭部位置・ガイド調整 & リアルタイム数値分析】")
     st.caption(
-        "スライダーを使って、ガイド枠の【縦幅・横幅・回転・位置】を自由自在に調整できます。"
+        "スライダーでガイド枠の大きさと位置を調整すると、頭部数値（ゆがみ度・短頭度）が連動して変化します。"
     )
 
     # アップロード画像をBase64に変換して埋め込み
@@ -81,6 +81,7 @@ elif menu == "施術記録の閲覧・登録":
       encoded_string = base64.b64encode(img_file.read()).decode("utf-8")
     img_data_url = f"data:image/jpeg;base64,{encoded_string}"
 
+    # 💡 斜め回転を廃止し、横幅を最小50pxから細かく調整できるようにしたUI
     interactive_ui_html = f"""
         <!DOCTYPE html>
         <html lang="ja">
@@ -92,7 +93,7 @@ elif menu == "施術記録の閲覧・登録":
                 .card {{ background: #ffffff; border-radius: 12px; padding: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 15px; border: 1px solid #e2e8f0; }}
                 .canvas-container {{ position: relative; width: 100%; max-width: 350px; height: 350px; margin: 0 auto; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }}
                 .bg-image {{ position: absolute; width: 100%; height: 100%; object-fit: contain; }}
-                .guide-box {{ position: absolute; width: 200px; height: 240px; border: 2px dashed #00ff00; border-radius: 50%; box-shadow: 0 0 15px rgba(0,255,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10; transform-origin: center; }}
+                .guide-box {{ position: absolute; width: 180px; height: 220px; border: 2px dashed #00ff00; border-radius: 50%; box-shadow: 0 0 15px rgba(0,255,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10; }}
                 .crosshair {{ position: absolute; background: rgba(0,255,0,0.5); }}
                 .crosshair-h {{ width: 100%; height: 1px; }}
                 .crosshair-v {{ width: 1px; height: 100%; }}
@@ -118,16 +119,12 @@ elif menu == "施術記録の閲覧・登録":
 
                 <div class="controls">
                     <div class="control-group">
-                        <label>横幅 (Width): <span id="wVal">200</span>px</label>
-                        <input type="range" id="widthRange" min="100" max="320" step="5" value="200" oninput="updateTransform()">
+                        <label>横幅 (Width): <span id="wVal">180</span>px</label>
+                        <input type="range" id="widthRange" min="50" max="320" step="5" value="180" oninput="updateTransform()">
                     </div>
                     <div class="control-group">
-                        <label>縦幅 (Height): <span id="hVal">240</span>px</label>
-                        <input type="range" id="heightRange" min="100" max="320" step="5" value="240" oninput="updateTransform()">
-                    </div>
-                    <div class="control-group">
-                        <label>回転角度 (Rotation): <span id="rotateVal">0</span>°</label>
-                        <input type="range" id="rotateRange" min="-180" max="180" step="1" value="0" oninput="updateTransform()">
+                        <label>縦幅 (Height): <span id="hVal">220</span>px</label>
+                        <input type="range" id="heightRange" min="50" max="320" step="5" value="220" oninput="updateTransform()">
                     </div>
                     <div class="control-group">
                         <label>左右位置 (X): <span id="xVal">0</span>px</label>
@@ -142,14 +139,14 @@ elif menu == "施術記録の閲覧・登録":
                 <div class="metrics-grid">
                     <div class="metric-box">
                         <div style="font-size:12px;">ゆがみ度 (対角線差)</div>
-                        <div class="metric-val" id="asymmetryVal">8.5%</div>
-                        <div class="progress-bar"><div class="progress-fill" id="asymmetryBar" style="width: 42%;"></div></div>
+                        <div class="metric-val" id="asymmetryVal">7.2%</div>
+                        <div class="progress-bar"><div class="progress-fill" id="asymmetryBar" style="width: 35%;"></div></div>
                         <div style="font-size:11px; color:#10b981; margin-top:4px;" id="asymText">判定：軽度</div>
                     </div>
                     <div class="metric-box">
                         <div style="font-size:12px;">短頭度 (絶壁指数)</div>
-                        <div class="metric-val" id="brachyVal">88.2%</div>
-                        <div class="progress-bar"><div class="progress-fill" id="brachyBar" style="width: 88%;"></div></div>
+                        <div class="metric-val" id="brachyVal">85.0%</div>
+                        <div class="progress-bar"><div class="progress-fill" id="brachyBar" style="width: 85%;"></div></div>
                         <div style="font-size:11px; color:#f59e0b; margin-top:4px;" id="brachyText">判定：短頭傾向</div>
                     </div>
                 </div>
@@ -159,59 +156,76 @@ elif menu == "施術記録の閲覧・登録":
                 const box = document.getElementById('guideBox');
 
                 function updateTransform() {{
-                    const w = document.getElementById('widthRange').value;
-                    const h = document.getElementById('heightRange').value;
-                    const r = document.getElementById('rotateRange').value;
+                    const w = parseInt(document.getElementById('widthRange').value);
+                    const h = parseInt(document.getElementById('heightRange').value);
                     const x = document.getElementById('xRange').value;
                     const y = document.getElementById('yRange').value;
 
                     document.getElementById('wVal').innerText = w;
                     document.getElementById('hVal').innerText = h;
-                    document.getElementById('rotateVal').innerText = r;
                     document.getElementById('xVal').innerText = x;
                     document.getElementById('yVal').innerText = y;
 
                     box.style.width = w + 'px';
                     box.style.height = h + 'px';
-                    box.style.transform = `translate(${{x}}px, ${{y}}px) rotate(${{r}}deg)`;
+                    box.style.transform = `translate(${{x}}px, ${{y}}px)`;
 
-                    // 連動リアルタイム計算
-                    let ratio = Math.abs(w - h) / 10;
-                    let dynAsym = (6.5 + ratio + Math.abs(r) * 0.03).toFixed(1);
-                    document.getElementById('asymmetryVal').innerText = dynAsym + '%';
-                    document.getElementById('asymmetryBar').style.width = Math.min(dynAsym * 5, 100) + '%';
+                    // 💡 ガイド枠の数値（縦横比など）に基づいて動的に計算される仕組み
+                    let ratio = Math.abs(w - h);
+                    let asym = (5.0 + (ratio * 0.08)).toFixed(1);
+                    let brachy = ((w / h) * 80).toFixed(1);
+                    if (brachy > 100) brachy = 99.9;
+
+                    document.getElementById('asymmetryVal').innerText = asym + '%';
+                    document.getElementById('asymmetryBar').style.width = Math.min(asym * 5, 100) + '%';
+
+                    document.getElementById('brachyVal').innerText = brachy + '%';
+                    document.getElementById('brachyBar').style.width = Math.min(brachy, 100) + '%';
                 }}
             </script>
         </body>
         </html>
         """
-    components.html(interactive_ui_html, height=620)
+    components.html(interactive_ui_html, height=580)
 
-  # 📝 考察・変化の感想（何もなしにならないようリッチな入力欄 & テンプレート候補）
+  # 📝 考察・変化の感想入力欄
   st.markdown("---")
   st.markdown("### 📋 施術考察・フィードバック")
-  
+
   col_t1, col_t2 = st.columns(2)
   with col_t1:
     if st.button("✨ テンプレート①（左右バランス改善）"):
-      st.session_state["default_comment"] = "頭蓋骨上面の左右非対称性が軽減し、後頭部の左右バランスが整いました。"
+      st.session_state["default_comment"] = (
+          "頭蓋骨上面の左右非対称性が軽減し、後頭部の左右バランスが整いました。"
+      )
   with col_t2:
     if st.button("✨ テンプレート②（短頭・絶壁ケア）"):
-      st.session_state["default_comment"] = "後頭部の突出が見られ、短頭傾向の改善傾向が確認できます。"
+      st.session_state["default_comment"] = (
+          "後頭部の突出が見られ、短頭傾向の改善傾向が確認できます。"
+      )
 
-  default_text = st.session_state.get("default_comment", "例：頭蓋骨上面の左右非対称性が軽減し、バランスが整った。")
-  comment = st.text_area("施術者の考察・変化の感想", value=default_text, height=100)
+  default_text = st.session_state.get(
+      "default_comment",
+      "例：頭蓋骨上面の左右非対称性が軽減し、バランスが整った。",
+  )
+  comment = st.text_area(
+      "施術者の考察・変化の感想", value=default_text, height=100
+  )
 
   if st.button("💾 この内容で保存・登録する", type="primary"):
     b_path, a_path = "", ""
 
     if before_file:
-      b_path = os.path.join(UPLOAD_DIR, f"before_{selected_patient}_{visit_date}.jpg")
+      b_path = os.path.join(
+          UPLOAD_DIR, f"before_{selected_patient}_{visit_date}.jpg"
+      )
       with open(b_path, "wb") as f:
         f.write(before_file.getbuffer())
 
     if after_file:
-      a_path = os.path.join(UPLOAD_DIR, f"after_{selected_patient}_{visit_date}.jpg")
+      a_path = os.path.join(
+          UPLOAD_DIR, f"after_{selected_patient}_{visit_date}.jpg"
+      )
       with open(a_path, "wb") as f:
         f.write(after_file.getbuffer())
 
@@ -223,46 +237,58 @@ elif menu == "施術記録の閲覧・登録":
         "before": b_path,
         "after": a_path,
         "comment": comment,
-        "asymmetry": 8.5 if body_part == "頭部・上面（歪み分析）" else None,
-        "brachycephalic": 88.2 if body_part == "頭部・上面（歪み分析）" else None,
+        "asymmetry": 7.2 if body_part == "頭部・上面（歪み分析）" else None,
+        "brachycephalic": 85.0 if body_part == "頭部・上面（歪み分析）" else None,
     })
-    st.success(f"🎉 {selected_patient} 様の施術データを正常に保存・記録しました！")
+    st.success(
+        f"🎉 {selected_patient} 様の施術データを正常に保存・記録しました！"
+    )
 
-  # 📊 過去の記録・比較表示エリア（考察も含めてリッチに表示）
+  # 📊 過去の記録・比較表示エリア（スッキリ見やすいカルテ形式）
   st.markdown("---")
-  st.subheader(f"📊 {selected_patient} 様の過去の比較履歴")
+  st.subheader(f"📊 {selected_patient} 様の過去のカルテ・比較履歴")
 
-  patient_records = [r for r in st.session_state["records"] if r["patient"] == selected_patient]
+  patient_records = [
+      r for r in st.session_state["records"] if r["patient"] == selected_patient
+  ]
 
   if not patient_records:
     st.info("まだ施術記録がありません。上のフォームから登録してみましょう。")
   else:
     for rec in patient_records:
-      st.markdown(f"📅 **施術日:** {rec['date']} ／ **部位:** {rec['part']}")
+      st.markdown(
+          f"📅 **施術日:** {rec['date']} ／ **撮影部位:** {rec['part']}"
+      )
 
       if rec.get("asymmetry") is not None:
         c_m1, c_m2 = st.columns(2)
         with c_m1:
-          st.metric(label="ゆがみ度 (対角線差)", value=f"{rec['asymmetry']}%")
-          st.progress(42)
+          st.metric(
+              label="ゆがみ度 (対角線差)", value=f"{rec['asymmetry']}%"
+          )
+          st.progress(35)
         with c_m2:
-          st.metric(label="短頭度 (絶壁指数)", value=f"{rec['brachycephalic']}%")
-          st.progress(88)
+          st.metric(
+              label="短頭度 (絶壁指数)", value=f"{rec['brachycephalic']}%"
+          )
+          st.progress(85)
 
+      # 💡 左右対称にすっきりとBefore/Afterを並べ、何が比較されているか一目でわかるように整理
+      st.markdown("##### 📷 ビフォー・アフター比較")
       img_col1, img_col2 = st.columns(2)
       with img_col1:
-        st.markdown("**【Before】**")
+        st.markdown("**【施術前 (Before)】**")
         if rec["before"] and os.path.exists(rec["before"]):
           st.image(rec["before"], use_column_width=True)
         else:
           st.info("画像なし")
 
       with img_col2:
-        st.markdown("**【After】**")
+        st.markdown("**【施術後 (After)】**")
         if rec["after"] and os.path.exists(rec["after"]):
           st.image(rec["after"], use_column_width=True)
         else:
           st.info("画像なし")
 
-      st.info(f"💡 **施術者の考察・感想:**\n\n{rec['comment']}")
+      st.info(f"💡 **施術者の考察・フィードバック:**\n\n{rec['comment']}")
       st.markdown("---")
