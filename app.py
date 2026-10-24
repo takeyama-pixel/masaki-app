@@ -98,14 +98,13 @@ elif menu == "施術記録の閲覧・登録":
             best_c = None
             min_score = float("inf")
 
-            # 💡 魔法の改良：単に大きいだけでなく、「画像の中央付近に位置している輪郭」を頭部として採用する
             for c in contours:
-              if cv2.contourArea(c) > (w * h * 0.05):  -  # ある程度の大きさがあるもの
+              # 一定以上の大きさがあり、かつ画像の中央付近にある輪郭を頭部として探索
+              if cv2.contourArea(c) > (w * h * 0.05):
                 M = cv2.moments(c)
                 if M["m00"] > 0:
                   cx = M["m10"] / M["m00"]
                   cy = M["m01"] / M["m00"]
-                  # 画像中心からの距離をスコアにする（近いほど優秀）
                   distance_from_center = (cx - img_center_x) ** 2 + (
                       cy - img_center_y
                   ) ** 2
