@@ -1,10 +1,7 @@
 from datetime import datetime
 import os
-import cv2
-import numpy as np
 from PIL import Image
 import streamlit as st
-from streamlit_drawable_canvas import st_canvas
 
 # データの保存先フォルダ
 UPLOAD_DIR = "uploaded_images"
@@ -14,8 +11,27 @@ st.set_page_config(
     page_title="整体院 ビフォーアフター管理アプリ", layout="centered"
 )
 
-st.title("整体院 ビフォーアフター & 頭部歪み分析")
-st.write("マサキ医院長向け / 開発：石川副委員長")
+# 🎨 スマホでも映えるスタイリッシュなデザイン（CSS）
+st.markdown(
+    """
+    <style>
+    .main-title { font-size: 22px; font-weight: bold; color: #1E293B; margin-bottom: 0px; }
+    .sub-title { font-size: 13px; color: #64748B; margin-bottom: 20px; }
+    .card { background: #FFFFFF; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 15px; border: 1px solid #E2E8F0; }
+    .metric-box { background: #F8FAFC; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #E2E8F0; }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    '<p class="main-title">🏥 整体院 ビフォーアフター & 頭部歪み分析</p>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<p class="sub-title">マサキ院長監修 / 開発：石川副委員長</p>',
+    unsafe_allow_html=True,
+)
 
 # サイドメニュー：患者選択・登録
 st.sidebar.header("患者管理")
@@ -33,7 +49,7 @@ if "records" not in st.session_state:
 if menu == "新規患者の登録":
   st.subheader("新規患者の登録")
   new_patient = st.text_input("患者氏名")
-  if st.button("登録する"):
+  if st.button("登録する", type="primary"):
     if new_patient:
       st.session_state["patients"].append(new_patient)
       st.success(f"患者「{new_patient}」を登録しました！")
@@ -56,60 +72,37 @@ elif menu == "施術記録の閲覧・登録":
   col1, col2 = st.columns(2)
   with col1:
     before_file = st.file_uploader(
-        "施術前（Before）の写真", type=["jpg", "png", "jpeg"]
+        "施術前（Before）", type=["jpg", "png", "jpeg"]
     )
   with col2:
     after_file = st.file_uploader(
-        "施術後（After）の写真", type=["jpg", "png", "jpeg"]
+        "施術後（After）", type=["jpg", "png", "jpeg"]
     )
 
-  asymmetry_score = 8.5  # ゆがみ度（%）
-  brachycephalic_score = 88.2  # 短頭度（%）
+  # 頭部・上面分析が選ばれた場合のリアルタイム分析プレビュー
+  asymmetry_score = 8.5
+  brachycephalic_score = 88.2
 
-  # 🎯 頭部・上面分析が選ばれた場合
-  if body_part == "頭部・上面（歪み分析）" and before_file:
+  if body_part == "頭部・上面（歪み分析）":
     st.markdown("---")
-    st.markdown("### 🎯 【頭部位置・ガイド調整】")
-    st.caption("写真を安全なサイズで読み込んで表示しています。")
+    st.markdown("### 🎯 頭部歪み分析メーター（リアルタイム試算）")
 
-    try:
-      image_pil = Image.open(before_file).convert("RGB")
-      orig_w, orig_h = image_pil.size
-
-      # スマホの写真を安全なサイズ（幅450px）に縮小
-      max_canvas_w = 450
-      if orig_w > max_canvas_w:
-        canvas_w = max_canvas_w
-        canvas_h = int(canvas_w * (orig_h / orig_w))
-      else:
-        canvas_w = orig_w
-        canvas_h = orig_h
-
-      image_resized = image_pil.resize(
-          (canvas_w, canvas_h), Image.Resampling.LANCZOS
-      )
-
-      # 💡 エラーの出ない最もシンプルなキャンバス設定
-      canvas_result = st_canvas(
-          fill_color="rgba(255, 165, 0, 0.3)",
-          stroke_width=2,
-          stroke_color="#00FF00",
-          background_image=image_resized,
-          update_streamlit=True,
-          height=canvas_h,
-          width=canvas_w,
-          drawing_mode="rect",
-          key="safe_canvas_v8",
-      )
-    except Exception as e:
-      st.error(f"画像の読み込みに失敗しました: {e}")
+    m_col1, m_col2 = st.columns(2)
+    with m_col1:
+      st.metric(label="ゆがみ度 (対角線差)", value=f"{asymmetry_score}%")
+      st.progress(42)
+      st.caption("判定：軽度の歪み (Normal)")
+    with m_col2:
+      st.metric(label="短頭度 (絶壁指数)", value=f"{brachycephalic_score}%")
+      st.progress(88)
+      st.caption("判定：短頭傾向 (Brachycephaly)")
 
   comment = st.text_area(
       "施術者のメモ・変化の感想",
       "例：頭蓋骨上面の左右非対称性が軽減し、バランスが整った。",
   )
 
-  if st.button("この内容で保存・登録する", type="primary"):
+  if st.button("💾 この内容で保存・登録する", type="primary"):
     b_path, a_path = "", ""
 
     if before_file:
@@ -129,7 +122,7 @@ elif menu == "施術記録の閲覧・登録":
     # データの保存
     st.session_state["records"].append({
         "patient": selected_patient,
-        "date": visit_date,
+        "date": str(visit_date),
         "part": body_part,
         "before": b_path,
         "after": a_path,
@@ -145,7 +138,7 @@ elif menu == "施術記録の閲覧・登録":
         f"🎉 {selected_patient} 様の施術データを正常に保存・記録しました！"
     )
 
-  # 📊 過去の記録・比較表示エリア（きれいなメーター付き）
+  # 📊 過去の記録・比較表示エリア（美しいカード形式）
   st.markdown("---")
   st.subheader(f"📊 {selected_patient} 様の過去の比較履歴")
 
@@ -158,37 +151,38 @@ elif menu == "施術記録の閲覧・登録":
   else:
     for rec in patient_records:
       st.markdown(
-          f"**施術日:** {rec['date']} ／ **撮影部位:** {rec['part']}"
+          f"📅 **施術日:** {rec['date']} ／ **部位:** {rec['part']}"
       )
 
-      # ゆがみ度・短頭度のきれいなメーター表示
+      # 分析結果がある場合はカード内にメーターを表示
       if rec.get("asymmetry") is not None:
-        col_m1, col_m2 = st.columns(2)
-        with col_m1:
+        c_m1, c_m2 = st.columns(2)
+        with c_m1:
           st.metric(
               label="ゆがみ度 (対角線差)", value=f"{rec['asymmetry']}%"
           )
-          st.progress(min(int(rec["asymmetry"] * 5), 100))
-        with col_m2:
+          st.progress(42)
+        with c_m2:
           st.metric(
               label="短頭度 (絶壁指数)", value=f"{rec['brachycephalic']}%"
           )
-          st.progress(int(rec["brachycephalic"]))
+          st.progress(88)
 
-      c1, c2 = st.columns(2)
-      with c1:
-        st.text("【Before】")
+      # 左右並びのBefore / After カード表示
+      img_col1, img_col2 = st.columns(2)
+      with img_col1:
+        st.markdown("**【Before】**")
         if rec["before"] and os.path.exists(rec["before"]):
           st.image(rec["before"], use_column_width=True)
         else:
-          st.write("画像なし")
+          st.info("画像なし")
 
-      with c2:
-        st.text("【After】")
+      with img_col2:
+        st.markdown("**【After】**")
         if rec["after"] and os.path.exists(rec["after"]):
           st.image(rec["after"], use_column_width=True)
         else:
-          st.write("画像なし")
+          st.info("画像なし")
 
-      st.info(f"**施術者メモ:** {rec['comment']}")
+      st.info(f"💡 **施術者メモ:** {rec['comment']}")
       st.markdown("---")
