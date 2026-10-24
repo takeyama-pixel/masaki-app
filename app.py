@@ -63,11 +63,11 @@ elif menu == "施術記録の閲覧・登録":
         "施術後（After）の写真", type=["jpg", "png", "jpeg"]
     )
 
-  # 頭部・上面分析が選ばれた場合、スマホでタッチ・位置調整できるキャンバスを表示
   analyzed_b_path = ""
-  asymmetry_score = 0.0
-  brachycephalic_score = 0.0
+  asymmetry_score = 8.5  # サンプル値
+  brachycephalic_score = 88.2
 
+  # 頭部・上面分析が選ばれた場合、大きすぎる画像を自動縮小して安全にキャンバス表示
   if body_part == "頭部・上面（歪み分析）" and before_file:
     st.markdown("---")
     st.markdown("### 🎯 【頭部位置・ガイド調整】")
@@ -75,29 +75,31 @@ elif menu == "施術記録の閲覧・登録":
         "スマホ画面で画像をタッチしながら、頭部の位置や大きさに合わせてガイド枠を調整できます。"
     )
 
-    image_pil = Image.open(before_file).convert("RGB")
-    # キャンバスサイズに合わせるためリサイズ（幅最大400px）
-    orig_w, orig_h = image_pil.size
-    canvas_w = 350
-    canvas_h = int(canvas_w * (orig_h / orig_w))
-    image_resized = image_pil.resize((canvas_w, canvas_h))
+    try:
+      image_pil = Image.open(before_file).convert("RGB")
+      orig_w, orig_h = image_pil.size
 
-    # インタラクティブキャンバスの配置（スマホ対応）
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 165, 0, 0.3)",
-        stroke_width=2,
-        stroke_color="#00FF00",
-        background_image=image_resized,
-        update_streamlit=True,
-        height=canvas_h,
-        width=canvas_w,
-        drawing_mode="transform",  # オブジェクトを移動・変形できるモード
-        key="canvas",
-    )
+      # 💡 巨大すぎるスマホ写真を安全なサイズ（幅400px）に自動縮小
+      canvas_w = 400
+      canvas_h = int(canvas_w * (orig_h / orig_w))
+      image_resized = image_pil.resize(
+          (canvas_w, canvas_h), Image.Resampling.LANCZOS
+      )
 
-    # 簡易的なスコア算出（調整状況に応じたダミー連動または楕円フィッティング）
-    asymmetry_score = 8.5  # 軽度〜中等度のサンプル値
-    brachycephalic_score = 88.2
+      # インタラクティブキャンバスの配置
+      canvas_result = st_canvas(
+          fill_color="rgba(255, 165, 0, 0.3)",
+          stroke_width=2,
+          stroke_color="#00FF00",
+          background_image=image_resized,
+          update_streamlit=True,
+          height=canvas_h,
+          width=canvas_w,
+          drawing_mode="transform",
+          key="canvas_safe",
+      )
+    except Exception as e:
+      st.error(f"画像の読み込みに失敗しました: {e}")
 
   comment = st.text_area(
       "施術者のメモ・変化の感想",
@@ -156,7 +158,6 @@ elif menu == "施術記録の閲覧・登録":
           f"**施術日:** {rec['date']} ／ **撮影部位:** {rec['part']}"
       )
 
-      # 頭部歪み分析の結果（メーター表示）がある場合
       if rec.get("asymmetry") is not None:
         col_m1, col_m2 = st.columns(2)
         with col_m1:
@@ -170,7 +171,6 @@ elif menu == "施術記録の閲覧・登録":
           )
           st.progress(int(rec["brachycephalic"]))
 
-      # Before / After 画像の並列表示
       c1, c2 = st.columns(2)
       with c1:
         st.text("【Before】")
