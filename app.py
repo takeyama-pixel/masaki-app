@@ -66,7 +66,7 @@ elif menu == "施術記録の閲覧・登録":
     st.markdown("---")
     st.markdown("### 🎯 【Before / After 個別ガイド調整 & 比較分析】")
     st.caption(
-        "それぞれの写真で、斜めの歪みに合わせてガイド枠の【横幅・縦幅・斜め回転】を個別に調整できます。"
+        "それぞれの写真で、大きさ・斜め回転・上下左右の位置を個別に調整できます。"
     )
 
     # 画像をそれぞれ一時保存してBase64化
@@ -91,7 +91,7 @@ elif menu == "施術記録の閲覧・登録":
       with open(a_path_tmp, "rb") as f:
         a_data_url = f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode('utf-8')}"
 
-    # 💡 BeforeとAfterそれぞれを個別にグリグリ動かして数値化できる2画面パネルUI
+    # 💡 Before・Afterそれぞれに「サイズ」「回転」「位置（X, Y）」の全調整スライダーを完備したUI
     dual_ui_html = f"""
         <!DOCTYPE html>
         <html lang="ja">
@@ -100,10 +100,10 @@ elif menu == "施術記録の閲覧・登録":
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
                 body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; margin: 0; padding: 5px; color: #1e293b; }}
-                .grid-2 {{ display: grid; grid-template-columns: 1fr; gap: 15px; }}
+                .grid-2 {{ display: grid; grid-template-columns: 1fr; gap: 20px; }}
                 @media(min-width: 600px) {{ .grid-2 {{ grid-template-columns: 1fr 1fr; }} }}
                 .card {{ background: #ffffff; border-radius: 12px; padding: 14px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }}
-                .card-title {{ font-weight: bold; font-size: 14px; margin-bottom: 8px; color: #0f172a; text-align: center; }}
+                .card-title {{ font-weight: bold; font-size: 15px; margin-bottom: 8px; color: #0f172a; text-align: center; }}
                 .canvas-container {{ position: relative; width: 100%; max-width: 280px; height: 280px; margin: 0 auto; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }}
                 .bg-image {{ position: absolute; width: 100%; height: 100%; object-fit: contain; }}
                 .guide-box {{ position: absolute; width: 160px; height: 200px; border: 2px dashed #00ff00; border-radius: 50%; box-shadow: 0 0 10px rgba(0,255,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10; transform-origin: center; }}
@@ -135,6 +135,8 @@ elif menu == "施術記録の閲覧・登録":
                         <div class="control-group"><label>横幅: <span id="wValB">160</span>px</label><input type="range" id="wB" min="50" max="260" step="2" value="160" oninput="updateB()"></div>
                         <div class="control-group"><label>縦幅: <span id="hValB">200</span>px</label><input type="range" id="hB" min="50" max="260" step="2" value="200" oninput="updateB()"></div>
                         <div class="control-group"><label>斜め回転: <span id="rValB">0</span>°</label><input type="range" id="rB" min="-90" max="90" step="1" value="0" oninput="updateB()"></div>
+                        <div class="control-group"><label>左右位置 (X): <span id="xValB">0</span>px</label><input type="range" id="xB" min="-80" max="80" step="2" value="0" oninput="updateB()"></div>
+                        <div class="control-group"><label>上下位置 (Y): <span id="yValB">0</span>px</label><input type="range" id="yB" min="-80" max="80" step="2" value="0" oninput="updateB()"></div>
                     </div>
                     <div class="metric-box">
                         <div style="font-size:11px;">Before ゆがみ度</div>
@@ -157,6 +159,8 @@ elif menu == "施術記録の閲覧・登録":
                         <div class="control-group"><label>横幅: <span id="wValA">165</span>px</label><input type="range" id="wA" min="50" max="260" step="2" value="165" oninput="updateA()"></div>
                         <div class="control-group"><label>縦幅: <span id="hValA">195</span>px</label><input type="range" id="hA" min="50" max="260" step="2" value="195" oninput="updateA()"></div>
                         <div class="control-group"><label>斜め回転: <span id="rValA">0</span>°</label><input type="range" id="rA" min="-90" max="90" step="1" value="0" oninput="updateA()"></div>
+                        <div class="control-group"><label>左右位置 (X): <span id="xValA">0</span>px</label><input type="range" id="xA" min="-80" max="80" step="2" value="0" oninput="updateA()"></div>
+                        <div class="control-group"><label>上下位置 (Y): <span id="yValA">0</span>px</label><input type="range" id="yA" min="-80" max="80" step="2" value="0" oninput="updateA()"></div>
                     </div>
                     <div class="metric-box">
                         <div style="font-size:11px;">After ゆがみ度</div>
@@ -171,13 +175,19 @@ elif menu == "施術記録の閲覧・登録":
                     let w = parseInt(document.getElementById('wB').value);
                     let h = parseInt(document.getElementById('hB').value);
                     let r = parseInt(document.getElementById('rB').value);
+                    let x = parseInt(document.getElementById('xB').value);
+                    let y = parseInt(document.getElementById('yB').value);
+
                     document.getElementById('wValB').innerText = w;
                     document.getElementById('hValB').innerText = h;
                     document.getElementById('rValB').innerText = r;
+                    document.getElementById('xValB').innerText = x;
+                    document.getElementById('yValB').innerText = y;
+
                     let box = document.getElementById('guideBoxB');
                     box.style.width = w + 'px';
                     box.style.height = h + 'px';
-                    box.style.transform = `rotate(${{r}}deg)`;
+                    box.style.transform = `translate(${{x}}px, ${{y}}px) rotate(${{r}}deg)`;
 
                     let val = (5.0 + Math.abs(w - h) * 0.1 + Math.abs(r) * 0.05).toFixed(1);
                     document.getElementById('asymB').innerText = val + '%';
@@ -188,13 +198,19 @@ elif menu == "施術記録の閲覧・登録":
                     let w = parseInt(document.getElementById('wA').value);
                     let h = parseInt(document.getElementById('hA').value);
                     let r = parseInt(document.getElementById('rA').value);
+                    let x = parseInt(document.getElementById('xA').value);
+                    let y = parseInt(document.getElementById('yA').value);
+
                     document.getElementById('wValA').innerText = w;
                     document.getElementById('hValA').innerText = h;
                     document.getElementById('rValA').innerText = r;
+                    document.getElementById('xValA').innerText = x;
+                    document.getElementById('yValA').innerText = y;
+
                     let box = document.getElementById('guideBoxA');
                     box.style.width = w + 'px';
                     box.style.height = h + 'px';
-                    box.style.transform = `rotate(${{r}}deg)`;
+                    box.style.transform = `translate(${{x}}px, ${{y}}px) rotate(${{r}}deg)`;
 
                     let val = (3.0 + Math.abs(w - h) * 0.08 + Math.abs(r) * 0.03).toFixed(1);
                     document.getElementById('asymA').innerText = val + '%';
@@ -204,7 +220,7 @@ elif menu == "施術記録の閲覧・登録":
         </body>
         </html>
         """
-    components.html(dual_ui_html, height=640)
+    components.html(dual_ui_html, height=760)
 
   # 📝 考察・変化の感想入力欄
   st.markdown("---")
@@ -247,7 +263,7 @@ elif menu == "施術記録の閲覧・登録":
       with open(a_path, "wb") as f:
         f.write(after_file.getbuffer())
 
-    # レコードの保存（BeforeとAfterそれぞれの数値を保持）
+    # レコードの保存
     st.session_state["records"].append({
         "patient": selected_patient,
         "date": str(visit_date),
@@ -279,7 +295,7 @@ elif menu == "施術記録の閲覧・登録":
           f"📅 **施術日:** {rec['date']} ／ **撮影部位:** {rec['part']}"
       )
 
-      # 💡 BeforeとAfterの数値をそれぞれ独立して表示し、改善度がひと目でわかるようにする
+      # 💡 エラーの出ない安全な標準の metric 表示
       if rec.get("asymmetry_before") is not None:
         c_m1, c_m2, c_m3 = st.columns(3)
         with c_m1:
@@ -287,12 +303,7 @@ elif menu == "施術記録の閲覧・登録":
               label="Before ゆがみ度", value=f"{rec['asymmetry_before']}%"
           )
         with c_m2:
-          st.metric(
-              label="After ゆがみ度",
-              value=f"{rec['asymmetry_after']}%",
-              delta="-4.3% 改善",
-              delta_value_color="inverse",
-          )
+          st.metric(label="After ゆがみ度", value=f"{rec['asymmetry_after']}%")
         with c_m3:
           st.metric(
               label="短頭度 (絶壁指数)", value=f"{rec['brachycephalic']}%"
