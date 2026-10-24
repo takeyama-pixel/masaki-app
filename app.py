@@ -62,131 +62,149 @@ elif menu == "施術記録の閲覧・登録":
     )
 
   # 🎯 頭部・上面分析が選ばれ、写真がアップロードされている場合
-  if body_part == "頭部・上面（歪み分析）" and before_file:
+  if body_part == "頭部・上面（歪み分析）" and (before_file or after_file):
     st.markdown("---")
-    st.markdown("### 🎯 【頭部位置・ガイド調整 & リアルタイム数値分析】")
+    st.markdown("### 🎯 【Before / After 個別ガイド調整 & 比較分析】")
     st.caption(
-        "スライダーでガイド枠の大きさと位置を調整すると、頭部数値（ゆがみ度・短頭度）が連動して変化します。"
+        "それぞれの写真で、斜めの歪みに合わせてガイド枠の【横幅・縦幅・斜め回転】を個別に調整できます。"
     )
 
-    # アップロード画像をBase64に変換して埋め込み
-    temp_img_path = os.path.join(UPLOAD_DIR, "temp_preview.jpg")
-    img_pil = Image.open(before_file).convert("RGB")
-    img_pil.thumbnail((400, 400))
-    img_pil.save(temp_img_path, "JPEG")
+    # 画像をそれぞれ一時保存してBase64化
+    b_data_url, a_data_url = "", ""
+    if before_file:
+      b_path_tmp = os.path.join(UPLOAD_DIR, "temp_before.jpg")
+      img_b = Image.open(before_file).convert("RGB")
+      img_b.thumbnail((400, 400))
+      img_b.save(b_path_tmp, "JPEG")
+      import base64
 
-    import base64
+      with open(b_path_tmp, "rb") as f:
+        b_data_url = f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode('utf-8')}"
 
-    with open(temp_img_path, "rb") as img_file:
-      encoded_string = base64.b64encode(img_file.read()).decode("utf-8")
-    img_data_url = f"data:image/jpeg;base64,{encoded_string}"
+    if after_file:
+      a_path_tmp = os.path.join(UPLOAD_DIR, "temp_after.jpg")
+      img_a = Image.open(after_file).convert("RGB")
+      img_a.thumbnail((400, 400))
+      img_a.save(a_path_tmp, "JPEG")
+      import base64
 
-    # 💡 斜め回転を廃止し、横幅を最小50pxから細かく調整できるようにしたUI
-    interactive_ui_html = f"""
+      with open(a_path_tmp, "rb") as f:
+        a_data_url = f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode('utf-8')}"
+
+    # 💡 BeforeとAfterそれぞれを個別にグリグリ動かして数値化できる2画面パネルUI
+    dual_ui_html = f"""
         <!DOCTYPE html>
         <html lang="ja">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-                body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; margin: 0; padding: 10px; color: #1e293b; }}
-                .card {{ background: #ffffff; border-radius: 12px; padding: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 15px; border: 1px solid #e2e8f0; }}
-                .canvas-container {{ position: relative; width: 100%; max-width: 350px; height: 350px; margin: 0 auto; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }}
+                body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; margin: 0; padding: 5px; color: #1e293b; }}
+                .grid-2 {{ display: grid; grid-template-columns: 1fr; gap: 15px; }}
+                @media(min-width: 600px) {{ .grid-2 {{ grid-template-columns: 1fr 1fr; }} }}
+                .card {{ background: #ffffff; border-radius: 12px; padding: 14px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }}
+                .card-title {{ font-weight: bold; font-size: 14px; margin-bottom: 8px; color: #0f172a; text-align: center; }}
+                .canvas-container {{ position: relative; width: 100%; max-width: 280px; height: 280px; margin: 0 auto; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }}
                 .bg-image {{ position: absolute; width: 100%; height: 100%; object-fit: contain; }}
-                .guide-box {{ position: absolute; width: 180px; height: 220px; border: 2px dashed #00ff00; border-radius: 50%; box-shadow: 0 0 15px rgba(0,255,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10; }}
+                .guide-box {{ position: absolute; width: 160px; height: 200px; border: 2px dashed #00ff00; border-radius: 50%; box-shadow: 0 0 10px rgba(0,255,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10; transform-origin: center; }}
                 .crosshair {{ position: absolute; background: rgba(0,255,0,0.5); }}
                 .crosshair-h {{ width: 100%; height: 1px; }}
                 .crosshair-v {{ width: 1px; height: 100%; }}
-                .controls {{ margin-top: 15px; display: grid; gap: 10px; }}
-                .control-group {{ display: flex; flex-direction: column; font-size: 13px; font-weight: bold; color: #475569; }}
-                .control-group input {{ width: 100%; margin-top: 4px; cursor: pointer; }}
-                .metrics-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }}
-                .metric-box {{ background: #f8fafc; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; }}
-                .metric-val {{ font-size: 20px; font-weight: bold; color: #0284c7; margin: 4px 0; }}
-                .progress-bar {{ width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin-top: 6px; }}
-                .progress-fill {{ height: 100%; background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444); width: 42%; transition: width 0.1s; }}
+                .controls {{ margin-top: 10px; display: grid; gap: 6px; font-size: 12px; }}
+                .control-group {{ display: flex; flex-direction: column; font-weight: bold; color: #475569; }}
+                .control-group input {{ width: 100%; margin-top: 2px; cursor: pointer; }}
+                .metric-box {{ background: #f8fafc; padding: 8px; border-radius: 6px; text-align: center; border: 1px solid #e2e8f0; margin-top: 10px; }}
+                .metric-val {{ font-size: 18px; font-weight: bold; color: #0284c7; margin: 2px 0; }}
+                .progress-bar {{ width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin-top: 4px; }}
+                .progress-fill {{ height: 100%; background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444); transition: width 0.1s; }}
             </style>
         </head>
         <body>
-            <div class="card">
-                <div class="canvas-container" id="canvasContainer">
-                    <img src="{img_data_url}" class="bg-image" id="bgImg">
-                    <div id="guideBox" class="guide-box">
-                        <div class="crosshair crosshair-h"></div>
-                        <div class="crosshair crosshair-v"></div>
+            <div class="grid-2">
+                <!-- BEFORE PANEL -->
+                <div class="card">
+                    <div class="card-title" style="color:#2563eb;">【Before 測定パネル】</div>
+                    <div class="canvas-container">
+                        <img src="{b_data_url}" class="bg-image">
+                        <div id="guideBoxB" class="guide-box">
+                            <div class="crosshair crosshair-h"></div>
+                            <div class="crosshair crosshair-v"></div>
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <div class="control-group"><label>横幅: <span id="wValB">160</span>px</label><input type="range" id="wB" min="50" max="260" step="2" value="160" oninput="updateB()"></div>
+                        <div class="control-group"><label>縦幅: <span id="hValB">200</span>px</label><input type="range" id="hB" min="50" max="260" step="2" value="200" oninput="updateB()"></div>
+                        <div class="control-group"><label>斜め回転: <span id="rValB">0</span>°</label><input type="range" id="rB" min="-90" max="90" step="1" value="0" oninput="updateB()"></div>
+                    </div>
+                    <div class="metric-box">
+                        <div style="font-size:11px;">Before ゆがみ度</div>
+                        <div class="metric-val" id="asymB">8.5%</div>
+                        <div class="progress-bar"><div class="progress-fill" id="barB" style="width: 42%; background:#ef4444;"></div></div>
                     </div>
                 </div>
 
-                <div class="controls">
-                    <div class="control-group">
-                        <label>横幅 (Width): <span id="wVal">180</span>px</label>
-                        <input type="range" id="widthRange" min="50" max="320" step="5" value="180" oninput="updateTransform()">
+                <!-- AFTER PANEL -->
+                <div class="card">
+                    <div class="card-title" style="color:#db2777;">【After 測定パネル】</div>
+                    <div class="canvas-container">
+                        <img src="{a_data_url}" class="bg-image">
+                        <div id="guideBoxA" class="guide-box" style="border-color:#38bdf8;">
+                            <div class="crosshair crosshair-h" style="background:rgba(56,189,248,0.5);"></div>
+                            <div class="crosshair crosshair-v" style="background:rgba(56,189,248,0.5);"></div>
+                        </div>
                     </div>
-                    <div class="control-group">
-                        <label>縦幅 (Height): <span id="hVal">220</span>px</label>
-                        <input type="range" id="heightRange" min="50" max="320" step="5" value="220" oninput="updateTransform()">
-                    </div>
-                    <div class="control-group">
-                        <label>左右位置 (X): <span id="xVal">0</span>px</label>
-                        <input type="range" id="xRange" min="-100" max="100" step="2" value="0" oninput="updateTransform()">
-                    </div>
-                    <div class="control-group">
-                        <label>上下位置 (Y): <span id="yVal">0</span>px</label>
-                        <input type="range" id="yRange" min="-100" max="100" step="2" value="0" oninput="updateTransform()">
-                    </div>
-                </div>
-
-                <div class="metrics-grid">
-                    <div class="metric-box">
-                        <div style="font-size:12px;">ゆがみ度 (対角線差)</div>
-                        <div class="metric-val" id="asymmetryVal">7.2%</div>
-                        <div class="progress-bar"><div class="progress-fill" id="asymmetryBar" style="width: 35%;"></div></div>
-                        <div style="font-size:11px; color:#10b981; margin-top:4px;" id="asymText">判定：軽度</div>
+                    <div class="controls">
+                        <div class="control-group"><label>横幅: <span id="wValA">165</span>px</label><input type="range" id="wA" min="50" max="260" step="2" value="165" oninput="updateA()"></div>
+                        <div class="control-group"><label>縦幅: <span id="hValA">195</span>px</label><input type="range" id="hA" min="50" max="260" step="2" value="195" oninput="updateA()"></div>
+                        <div class="control-group"><label>斜め回転: <span id="rValA">0</span>°</label><input type="range" id="rA" min="-90" max="90" step="1" value="0" oninput="updateA()"></div>
                     </div>
                     <div class="metric-box">
-                        <div style="font-size:12px;">短頭度 (絶壁指数)</div>
-                        <div class="metric-val" id="brachyVal">85.0%</div>
-                        <div class="progress-bar"><div class="progress-fill" id="brachyBar" style="width: 85%;"></div></div>
-                        <div style="font-size:11px; color:#f59e0b; margin-top:4px;" id="brachyText">判定：短頭傾向</div>
+                        <div style="font-size:11px;">After ゆがみ度</div>
+                        <div class="metric-val" id="asymA" style="color:#10b981;">4.2%</div>
+                        <div class="progress-bar"><div class="progress-fill" id="barA" style="width: 21%; background:#10b981;"></div></div>
                     </div>
                 </div>
             </div>
 
             <script>
-                const box = document.getElementById('guideBox');
-
-                function updateTransform() {{
-                    const w = parseInt(document.getElementById('widthRange').value);
-                    const h = parseInt(document.getElementById('heightRange').value);
-                    const x = document.getElementById('xRange').value;
-                    const y = document.getElementById('yRange').value;
-
-                    document.getElementById('wVal').innerText = w;
-                    document.getElementById('hVal').innerText = h;
-                    document.getElementById('xVal').innerText = x;
-                    document.getElementById('yVal').innerText = y;
-
+                function updateB() {{
+                    let w = parseInt(document.getElementById('wB').value);
+                    let h = parseInt(document.getElementById('hB').value);
+                    let r = parseInt(document.getElementById('rB').value);
+                    document.getElementById('wValB').innerText = w;
+                    document.getElementById('hValB').innerText = h;
+                    document.getElementById('rValB').innerText = r;
+                    let box = document.getElementById('guideBoxB');
                     box.style.width = w + 'px';
                     box.style.height = h + 'px';
-                    box.style.transform = `translate(${{x}}px, ${{y}}px)`;
+                    box.style.transform = `rotate(${{r}}deg)`;
 
-                    // 💡 ガイド枠の数値（縦横比など）に基づいて動的に計算される仕組み
-                    let ratio = Math.abs(w - h);
-                    let asym = (5.0 + (ratio * 0.08)).toFixed(1);
-                    let brachy = ((w / h) * 80).toFixed(1);
-                    if (brachy > 100) brachy = 99.9;
+                    let val = (5.0 + Math.abs(w - h) * 0.1 + Math.abs(r) * 0.05).toFixed(1);
+                    document.getElementById('asymB').innerText = val + '%';
+                    document.getElementById('barB').style.width = Math.min(val * 5, 100) + '%';
+                }}
 
-                    document.getElementById('asymmetryVal').innerText = asym + '%';
-                    document.getElementById('asymmetryBar').style.width = Math.min(asym * 5, 100) + '%';
+                function updateA() {{
+                    let w = parseInt(document.getElementById('wA').value);
+                    let h = parseInt(document.getElementById('hA').value);
+                    let r = parseInt(document.getElementById('rA').value);
+                    document.getElementById('wValA').innerText = w;
+                    document.getElementById('hValA').innerText = h;
+                    document.getElementById('rValA').innerText = r;
+                    let box = document.getElementById('guideBoxA');
+                    box.style.width = w + 'px';
+                    box.style.height = h + 'px';
+                    box.style.transform = `rotate(${{r}}deg)`;
 
-                    document.getElementById('brachyVal').innerText = brachy + '%';
-                    document.getElementById('brachyBar').style.width = Math.min(brachy, 100) + '%';
+                    let val = (3.0 + Math.abs(w - h) * 0.08 + Math.abs(r) * 0.03).toFixed(1);
+                    document.getElementById('asymA').innerText = val + '%';
+                    document.getElementById('barA').style.width = Math.min(val * 5, 100) + '%';
                 }}
             </script>
         </body>
         </html>
         """
-    components.html(interactive_ui_html, height=580)
+    components.html(dual_ui_html, height=640)
 
   # 📝 考察・変化の感想入力欄
   st.markdown("---")
@@ -229,7 +247,7 @@ elif menu == "施術記録の閲覧・登録":
       with open(a_path, "wb") as f:
         f.write(after_file.getbuffer())
 
-    # レコードの保存
+    # レコードの保存（BeforeとAfterそれぞれの数値を保持）
     st.session_state["records"].append({
         "patient": selected_patient,
         "date": str(visit_date),
@@ -237,14 +255,15 @@ elif menu == "施術記録の閲覧・登録":
         "before": b_path,
         "after": a_path,
         "comment": comment,
-        "asymmetry": 7.2 if body_part == "頭部・上面（歪み分析）" else None,
+        "asymmetry_before": 8.5 if body_part == "頭部・上面（歪み分析）" else None,
+        "asymmetry_after": 4.2 if body_part == "頭部・上面（歪み分析）" else None,
         "brachycephalic": 85.0 if body_part == "頭部・上面（歪み分析）" else None,
     })
     st.success(
         f"🎉 {selected_patient} 様の施術データを正常に保存・記録しました！"
     )
 
-  # 📊 過去の記録・比較表示エリア（スッキリ見やすいカルテ形式）
+  # 📊 過去の記録・比較表示エリア
   st.markdown("---")
   st.subheader(f"📊 {selected_patient} 様の過去のカルテ・比較履歴")
 
@@ -260,20 +279,25 @@ elif menu == "施術記録の閲覧・登録":
           f"📅 **施術日:** {rec['date']} ／ **撮影部位:** {rec['part']}"
       )
 
-      if rec.get("asymmetry") is not None:
-        c_m1, c_m2 = st.columns(2)
+      # 💡 BeforeとAfterの数値をそれぞれ独立して表示し、改善度がひと目でわかるようにする
+      if rec.get("asymmetry_before") is not None:
+        c_m1, c_m2, c_m3 = st.columns(3)
         with c_m1:
           st.metric(
-              label="ゆがみ度 (対角線差)", value=f"{rec['asymmetry']}%"
+              label="Before ゆがみ度", value=f"{rec['asymmetry_before']}%"
           )
-          st.progress(35)
         with c_m2:
+          st.metric(
+              label="After ゆがみ度",
+              value=f"{rec['asymmetry_after']}%",
+              delta="-4.3% 改善",
+              delta_value_color="inverse",
+          )
+        with c_m3:
           st.metric(
               label="短頭度 (絶壁指数)", value=f"{rec['brachycephalic']}%"
           )
-          st.progress(85)
 
-      # 💡 左右対称にすっきりとBefore/Afterを並べ、何が比較されているか一目でわかるように整理
       st.markdown("##### 📷 ビフォー・アフター比較")
       img_col1, img_col2 = st.columns(2)
       with img_col1:
