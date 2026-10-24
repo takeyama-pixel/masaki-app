@@ -63,11 +63,10 @@ elif menu == "施術記録の閲覧・登録":
         "施術後（After）の写真", type=["jpg", "png", "jpeg"]
     )
 
-  analyzed_b_path = ""
   asymmetry_score = 8.5  # サンプル値
   brachycephalic_score = 88.2
 
-  # 頭部・上面分析が選ばれた場合、大きすぎる画像を自動縮小して安全にキャンバス表示
+  # 頭部・上面分析が選ばれた場合、安全な大きさにしっかりリサイズしてキャンバス表示
   if body_part == "頭部・上面（歪み分析）" and before_file:
     st.markdown("---")
     st.markdown("### 🎯 【頭部位置・ガイド調整】")
@@ -79,9 +78,15 @@ elif menu == "施術記録の閲覧・登録":
       image_pil = Image.open(before_file).convert("RGB")
       orig_w, orig_h = image_pil.size
 
-      # 💡 巨大すぎるスマホ写真を安全なサイズ（幅400px）に自動縮小
-      canvas_w = 400
-      canvas_h = int(canvas_w * (orig_h / orig_w))
+      # 💡 スマホの巨大な画像を安全に処理できるサイズ（幅を最大 500px に制限）に確実縮小
+      max_canvas_w = 500
+      if orig_w > max_canvas_w:
+        canvas_w = max_canvas_w
+        canvas_h = int(canvas_w * (orig_h / orig_w))
+      else:
+        canvas_w = orig_w
+        canvas_h = orig_h
+
       image_resized = image_pil.resize(
           (canvas_w, canvas_h), Image.Resampling.LANCZOS
       )
@@ -96,7 +101,7 @@ elif menu == "施術記録の閲覧・登録":
           height=canvas_h,
           width=canvas_w,
           drawing_mode="transform",
-          key="canvas_safe",
+          key="canvas_safe_v2",
       )
     except Exception as e:
       st.error(f"画像の読み込みに失敗しました: {e}")
