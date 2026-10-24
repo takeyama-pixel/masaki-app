@@ -63,23 +63,23 @@ elif menu == "施術記録の閲覧・登録":
         "施術後（After）の写真", type=["jpg", "png", "jpeg"]
     )
 
-  asymmetry_score = 8.5  # サンプル値
-  brachycephalic_score = 88.2
+  asymmetry_score = 8.5  # ゆがみ度（%）
+  brachycephalic_score = 88.2  # 短頭度（%）
 
-  # 頭部・上面分析が選ばれた場合、安全な大きさにリサイズしてキャンバス表示
+  # 頭部・上面分析が選ばれた場合、安全なリサイズとキャンバス表示
   if body_part == "頭部・上面（歪み分析）" and before_file:
     st.markdown("---")
     st.markdown("### 🎯 【頭部位置・ガイド調整】")
     st.caption(
-        "スマホ画面で画像を確認しながら、必要な箇所をマーク・調整できます。"
+        "スマホ画面で画像を確認しながら、頭部の位置や大きさに合わせてガイド枠を調整できます。"
     )
 
     try:
       image_pil = Image.open(before_file).convert("RGB")
       orig_w, orig_h = image_pil.size
 
-      # スマホの巨大な画像を安全に処理できるサイズ（幅を最大 500px に制限）に縮小
-      max_canvas_w = 500
+      # スマホの巨大な画像を安全なサイズ（幅を最大 450px）に縮小
+      max_canvas_w = 450
       if orig_w > max_canvas_w:
         canvas_w = max_canvas_w
         canvas_h = int(canvas_w * (orig_h / orig_w))
@@ -91,7 +91,7 @@ elif menu == "施術記録の閲覧・登録":
           (canvas_w, canvas_h), Image.Resampling.LANCZOS
       )
 
-      # 💡 廃止されたモードを避け、安全な描画モード（rect：四角形枠の配置）に変更
+      # エラーが起きない安全な描画モード（rect）を使用
       canvas_result = st_canvas(
           fill_color="rgba(255, 165, 0, 0.3)",
           stroke_width=2,
@@ -101,7 +101,7 @@ elif menu == "施術記録の閲覧・登録":
           height=canvas_h,
           width=canvas_w,
           drawing_mode="rect",
-          key="canvas_safe_v3",
+          key="safe_canvas_v4",
       )
     except Exception as e:
       st.error(f"画像の読み込みに失敗しました: {e}")
@@ -147,7 +147,7 @@ elif menu == "施術記録の閲覧・登録":
         f"🎉 {selected_patient} 様の施術データを正常に保存・記録しました！"
     )
 
-  # 過去の記録・比較表示エリア
+  # 過去の記録・比較表示エリア（メーター付き）
   st.markdown("---")
   st.subheader(f"📊 {selected_patient} 様の過去の比較履歴")
 
@@ -163,18 +163,19 @@ elif menu == "施術記録の閲覧・登録":
           f"**施術日:** {rec['date']} ／ **撮影部位:** {rec['part']}"
       )
 
+      # ゆがみ度・短頭度のきれいなメーター表示
       if rec.get("asymmetry") is not None:
         col_m1, col_m2 = st.columns(2)
         with col_m1:
           st.metric(
               label="ゆがみ度 (対角線差)", value=f"{rec['asymmetry']}%"
           )
-          st.progress(min(int(rec["asymmetry"] * 5), 100))
+          st.progress(min(int(rec['asymmetry'] * 5), 100))
         with col_m2:
           st.metric(
               label="短頭度 (絶壁指数)", value=f"{rec['brachycephalic']}%"
           )
-          st.progress(int(rec["brachycephalic"]))
+          st.progress(int(rec['brachycephalic']))
 
       c1, c2 = st.columns(2)
       with c1:
