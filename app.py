@@ -48,15 +48,10 @@ elif menu == "施術記録の閲覧・登録":
         ["骨盤矯正", "腰椎", "肩・首", "全身・正面", "頭部・上面（歪み分析）"],
     )
 
-    # 【追加】スマホ撮影のズレに対応するための調整用スライダー
     st.markdown("---")
     st.write("📸 **[頭部・上面分析用] 切り抜き位置の調整**")
-    crop_top = st.slider(
-        "上からの切り抜きオフセット (%)", 0, 50, 15
-    )  // 上を削る割合
-    crop_side = st.slider(
-        "左右の切り抜き幅 (%)", 0, 40, 20
-    )  // 左右を削る割合
+    crop_top = st.slider("上からの切り抜きオフセット (%)", 0, 50, 15)  # 上を削る割合
+    crop_side = st.slider("左右の切り抜き幅 (%)", 0, 40, 20)  # 左右を削る割合
 
     col1, col2 = st.columns(2)
     with col1:
@@ -93,11 +88,9 @@ elif menu == "施術記録の閲覧・登録":
           img_np = np.array(image_pil)
           h, w, _ = img_np.shape
 
-          # スライダーで指定した割合に従ってクロップ位置を可変にする
           margin_h = int(h * (crop_top / 100.0))
           margin_w = int(w * (crop_side / 100.0))
 
-          # 頭部が上にあるか下にあるかに応じて切り抜き範囲を調整
           cropped_img = img_np[margin_h : h - margin_h, margin_w : w - margin_w]
 
           gray = cv2.cvtColor(cropped_img, cv2.COLOR_RGB2GRAY)
