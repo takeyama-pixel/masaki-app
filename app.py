@@ -48,10 +48,6 @@ elif menu == "施術記録の閲覧・登録":
         ["骨盤矯正", "腰椎", "肩・首", "全身・正面", "頭部・上面（歪み分析）"],
     )
 
-    st.markdown("---")
-    st.write("📸 **[頭部・上面分析] 自動中心検出モード稼働中**")
-    st.caption("スマホで頭部が中央に来るように撮影してください。")
-
     col1, col2 = st.columns(2)
     with col1:
       before_file = st.file_uploader(
@@ -62,12 +58,33 @@ elif menu == "施術記録の閲覧・登録":
           "施術後（After）の写真", type=["jpg", "png", "jpeg"]
       )
 
+    # ✂️ 【前準備の設定用スライダー＆ボタン（頭部・上面のときだけ表示）】
+    if body_part == "頭部・上面（歪み分析）":
+      st.markdown("---")
+      st.markdown("### 🛠️ 【前準備】画像の前処理・トリミング調整")
+      st.caption(
+          "スマホ写真の向きや、不要な手・服をスライダーで簡単に削り落とします"
+      )
+
+      rotate_angle = st.selectbox(
+          "画像の向き補正（回転）", [0, 90, 180, 270], format_func=lambda x: f"{x}度回転"
+      )
+      trim_top = st.slider(
+          "上部を削る (不要な手や背景をカット)", 0, 40, 10, 1
+      )
+      trim_bottom = st.slider(
+          "下部を削る (不要な洋服などをカット)", 0, 40, 10, 1
+      )
+      trim_side = st.slider(
+          "左右を削る (幅の調整)", 0, 40, 15, 1
+      )
+
     comment = st.text_area(
         "施術者のメモ・変化の感想",
         "例：頭蓋骨上面の左右非対称性が軽減し、バランスが整った。",
     )
 
-    submitted = st.form_submit_button("この内容で保存・登録")
+    submitted = st.form_submit_button("前準備を適用して保存・分析")
 
   if submitted:
     b_path, a_path = "", ""
@@ -83,40 +100,39 @@ elif menu == "施術記録の閲覧・登録":
 
       if body_part == "頭部・上面（歪み分析）":
         try:
+          # 1. 画像の読み込みと向き（回転）の補正
           image_pil = Image.open(b_path).convert("RGB")
+          if rotate_angle == 90:
+            image_pil = image_pil.rotate(270, expand=True)
+          elif rotate_angle == 180:
+            image_pil = image_pil.rotate(180, expand=True)
+          elif rotate_angle == 270:
+            image_pil = image_pil.rotate(90, expand=True)
+
           img_np = np.array(image_pil)
           h, w, _ = img_np.shape
 
-          gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+          # 2. スライダーの値に基づいて不要な部分をトリミング（非対象物の削除）
+          t_top = int(h * (trim_top / 100.0))
+          t_bot = int(h * (trim_bottom / 100.0))
+          t_side = int(w * (trim_side / 100.0))
+
+          cropped_img = img_np[t_top : h - t_bot, t_side : w - t_side]
+
+          # 3. 綺麗にトリミングされた画像に対して輪郭検出＆分析
+          gray = cv2.cvtColor(cropped_img, cv2.COLOR_RGB2GRAY)
           _, thresh = cv2.threshold(gray, 110, 255, cv2.THRESH_BINARY_INV)
           contours, _ = cv2.findContours(
               thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
           )
 
           if contours:
-            img_center_x, img_center_y = w / 2, h / 2
-            best_c = None
-            min_score = float("inf")
+            c = max(contours, key=cv2.contourArea)
+            if len(c) >= 5:
+              ellipse = cv2.fitEllipse(c)
 
-            for c in contours:
-              # 一定以上の大きさがあり、かつ画像の中央付近にある輪郭を頭部として探索
-              if cv2.contourArea(c) > (w * h * 0.05):
-                M = cv2.moments(c)
-                if M["m00"] > 0:
-                  cx = M["m10"] / M["m00"]
-                  cy = M["m01"] / M["m00"]
-                  distance_from_center = (cx - img_center_x) ** 2 + (
-                      cy - img_center_y
-                  ) ** 2
-                  if distance_from_center < min_score:
-                    min_score = distance_from_center
-                    best_c = c
-
-            if best_c is not None and len(best_c) >= 5:
-              ellipse = cv2.fitEllipse(best_c)
-
-              analyzed_img = img_np.copy()
-              cv2.ellipse(analyzed_img, ellipse, (0, 255, 0), 3)
+              analyzed_img = cropped_img.copy()
+              cv2.ellipse(analyzed_img, ellipse, (0, 255, 0), 3)  # 緑の輪郭
 
               center = (int(ellipse[0][0]), int(ellipse[0][1]))
               cv2.line(
@@ -125,7 +141,7 @@ elif menu == "施術記録の閲覧・登録":
                   (center[0], analyzed_img.shape[0]),
                   (255, 0, 0),
                   2,
-              )
+              )  # 青い十字軸
               cv2.line(
                   analyzed_img,
                   (0, center[1]),
@@ -166,7 +182,7 @@ elif menu == "施術記録の閲覧・登録":
         "comment": comment,
         "analysis": analysis_result,
     })
-    st.success("施術データおよび分析結果を保存しました！")
+    st.success("前準備と分析が完了し、データを保存しました！")
 
   st.markdown("---")
   st.subheader(f"📊 {selected_patient} 様の過去の比較履歴")
@@ -186,13 +202,13 @@ elif menu == "施術記録の閲覧・登録":
       if "analysis" in rec and rec["analysis"]:
         if "asymmetry_score" in rec["analysis"]:
           st.metric(
-              label="頭部 上面歪み指数 (中心自動検出)",
+              label="頭部 上面歪み指数 (前準備・トリミング後)",
               value=f"{rec['analysis']['asymmetry_score']} %",
           )
 
       c1, c2 = st.columns(2)
       with c1:
-        st.text("【Before（中心自動検出・分析線入り）】")
+        st.text("【Before（前準備・分析線入り）】")
         target_img = (
             rec["analysis"].get("analyzed_image")
             if (rec.get("analysis") and "analyzed_image" in rec["analysis"])
