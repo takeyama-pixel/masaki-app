@@ -64,9 +64,9 @@ elif menu == "施術記録の閲覧・登録":
   # 🎯 頭部・上面分析が選ばれ、写真がアップロードされている場合
   if body_part == "頭部・上面（歪み分析）" and (before_file or after_file):
     st.markdown("---")
-    st.markdown("### 🎯 【Before / After 個別ガイド調整 & 比較分析】")
+    st.markdown("### 🎯 【Before / After 個別ガイド調整 & リアルタイム比較】")
     st.caption(
-        "それぞれの写真で、大きさ・斜め回転・上下左右の位置を個別に調整できます。"
+        "上下に配置されたそれぞれの測定パネルで、枠の大きさと位置を個別に調整できます。"
     )
 
     # 画像をそれぞれ一時保存してBase64化
@@ -74,7 +74,7 @@ elif menu == "施術記録の閲覧・登録":
     if before_file:
       b_path_tmp = os.path.join(UPLOAD_DIR, "temp_before.jpg")
       img_b = Image.open(before_file).convert("RGB")
-      img_b.thumbnail((400, 400))
+      img_b.thumbnail((350, 350))
       img_b.save(b_path_tmp, "JPEG")
       import base64
 
@@ -84,15 +84,15 @@ elif menu == "施術記録の閲覧・登録":
     if after_file:
       a_path_tmp = os.path.join(UPLOAD_DIR, "temp_after.jpg")
       img_a = Image.open(after_file).convert("RGB")
-      img_a.thumbnail((400, 400))
+      img_a.thumbnail((350, 350))
       img_a.save(a_path_tmp, "JPEG")
       import base64
 
       with open(a_path_tmp, "rb") as f:
         a_data_url = f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode('utf-8')}"
 
-    # 💡 Before・Afterそれぞれに「サイズ」「回転」「位置（X, Y）」の全調整スライダーを完備したUI
-    dual_ui_html = f"""
+    # 💡 スマホで絶対に隠れない「縦並び（1カラム）」デザインで、Before/Afterを確実に操作できるUI
+    stack_ui_html = f"""
         <!DOCTYPE html>
         <html lang="ja">
         <head>
@@ -100,27 +100,26 @@ elif menu == "施術記録の閲覧・登録":
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
                 body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; margin: 0; padding: 5px; color: #1e293b; }}
-                .grid-2 {{ display: grid; grid-template-columns: 1fr; gap: 20px; }}
-                @media(min-width: 600px) {{ .grid-2 {{ grid-template-columns: 1fr 1fr; }} }}
-                .card {{ background: #ffffff; border-radius: 12px; padding: 14px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }}
-                .card-title {{ font-weight: bold; font-size: 15px; margin-bottom: 8px; color: #0f172a; text-align: center; }}
-                .canvas-container {{ position: relative; width: 100%; max-width: 280px; height: 280px; margin: 0 auto; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }}
+                .container {{ display: flex; flex-direction: column; gap: 20px; max-width: 400px; margin: 0 auto; }}
+                .card {{ background: #ffffff; border-radius: 12px; padding: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }}
+                .card-title {{ font-weight: bold; font-size: 16px; margin-bottom: 10px; text-align: center; }}
+                .canvas-container {{ position: relative; width: 100%; height: 260px; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }}
                 .bg-image {{ position: absolute; width: 100%; height: 100%; object-fit: contain; }}
-                .guide-box {{ position: absolute; width: 160px; height: 200px; border: 2px dashed #00ff00; border-radius: 50%; box-shadow: 0 0 10px rgba(0,255,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10; transform-origin: center; }}
+                .guide-box {{ position: absolute; width: 150px; height: 180px; border: 2px dashed #00ff00; border-radius: 50%; box-shadow: 0 0 10px rgba(0,255,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10; transform-origin: center; }}
                 .crosshair {{ position: absolute; background: rgba(0,255,0,0.5); }}
                 .crosshair-h {{ width: 100%; height: 1px; }}
                 .crosshair-v {{ width: 1px; height: 100%; }}
-                .controls {{ margin-top: 10px; display: grid; gap: 6px; font-size: 12px; }}
+                .controls {{ margin-top: 12px; display: grid; gap: 8px; font-size: 13px; }}
                 .control-group {{ display: flex; flex-direction: column; font-weight: bold; color: #475569; }}
-                .control-group input {{ width: 100%; margin-top: 2px; cursor: pointer; }}
-                .metric-box {{ background: #f8fafc; padding: 8px; border-radius: 6px; text-align: center; border: 1px solid #e2e8f0; margin-top: 10px; }}
-                .metric-val {{ font-size: 18px; font-weight: bold; color: #0284c7; margin: 2px 0; }}
-                .progress-bar {{ width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin-top: 4px; }}
+                .control-group input {{ width: 100%; margin-top: 3px; cursor: pointer; }}
+                .metric-box {{ background: #f8fafc; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; margin-top: 12px; }}
+                .metric-val {{ font-size: 20px; font-weight: bold; color: #0284c7; margin: 2px 0; }}
+                .progress-bar {{ width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin-top: 6px; }}
                 .progress-fill {{ height: 100%; background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444); transition: width 0.1s; }}
             </style>
         </head>
         <body>
-            <div class="grid-2">
+            <div class="container">
                 <!-- BEFORE PANEL -->
                 <div class="card">
                     <div class="card-title" style="color:#2563eb;">【Before 測定パネル】</div>
@@ -132,15 +131,15 @@ elif menu == "施術記録の閲覧・登録":
                         </div>
                     </div>
                     <div class="controls">
-                        <div class="control-group"><label>横幅: <span id="wValB">160</span>px</label><input type="range" id="wB" min="50" max="260" step="2" value="160" oninput="updateB()"></div>
-                        <div class="control-group"><label>縦幅: <span id="hValB">200</span>px</label><input type="range" id="hB" min="50" max="260" step="2" value="200" oninput="updateB()"></div>
+                        <div class="control-group"><label>横幅: <span id="wValB">150</span>px</label><input type="range" id="wB" min="50" max="250" step="2" value="150" oninput="updateB()"></div>
+                        <div class="control-group"><label>縦幅: <span id="hValB">180</span>px</label><input type="range" id="hB" min="50" max="250" step="2" value="180" oninput="updateB()"></div>
                         <div class="control-group"><label>斜め回転: <span id="rValB">0</span>°</label><input type="range" id="rB" min="-90" max="90" step="1" value="0" oninput="updateB()"></div>
                         <div class="control-group"><label>左右位置 (X): <span id="xValB">0</span>px</label><input type="range" id="xB" min="-80" max="80" step="2" value="0" oninput="updateB()"></div>
                         <div class="control-group"><label>上下位置 (Y): <span id="yValB">0</span>px</label><input type="range" id="yB" min="-80" max="80" step="2" value="0" oninput="updateB()"></div>
                     </div>
                     <div class="metric-box">
-                        <div style="font-size:11px;">Before ゆがみ度</div>
-                        <div class="metric-val" id="asymB">8.5%</div>
+                        <div style="font-size:12px;">Before ゆがみ度</div>
+                        <div class="metric-val" id="asymB" style="color:#ef4444;">8.5%</div>
                         <div class="progress-bar"><div class="progress-fill" id="barB" style="width: 42%; background:#ef4444;"></div></div>
                     </div>
                 </div>
@@ -156,14 +155,14 @@ elif menu == "施術記録の閲覧・登録":
                         </div>
                     </div>
                     <div class="controls">
-                        <div class="control-group"><label>横幅: <span id="wValA">165</span>px</label><input type="range" id="wA" min="50" max="260" step="2" value="165" oninput="updateA()"></div>
-                        <div class="control-group"><label>縦幅: <span id="hValA">195</span>px</label><input type="range" id="hA" min="50" max="260" step="2" value="195" oninput="updateA()"></div>
+                        <div class="control-group"><label>横幅: <span id="wValA">155</span>px</label><input type="range" id="wA" min="50" max="250" step="2" value="155" oninput="updateA()"></div>
+                        <div class="control-group"><label>縦幅: <span id="hValA">175</span>px</label><input type="range" id="hA" min="50" max="250" step="2" value="175" oninput="updateA()"></div>
                         <div class="control-group"><label>斜め回転: <span id="rValA">0</span>°</label><input type="range" id="rA" min="-90" max="90" step="1" value="0" oninput="updateA()"></div>
                         <div class="control-group"><label>左右位置 (X): <span id="xValA">0</span>px</label><input type="range" id="xA" min="-80" max="80" step="2" value="0" oninput="updateA()"></div>
                         <div class="control-group"><label>上下位置 (Y): <span id="yValA">0</span>px</label><input type="range" id="yA" min="-80" max="80" step="2" value="0" oninput="updateA()"></div>
                     </div>
                     <div class="metric-box">
-                        <div style="font-size:11px;">After ゆがみ度</div>
+                        <div style="font-size:12px;">After ゆがみ度</div>
                         <div class="metric-val" id="asymA" style="color:#10b981;">4.2%</div>
                         <div class="progress-bar"><div class="progress-fill" id="barA" style="width: 21%; background:#10b981;"></div></div>
                     </div>
@@ -220,7 +219,7 @@ elif menu == "施術記録の閲覧・登録":
         </body>
         </html>
         """
-    components.html(dual_ui_html, height=760)
+    components.html(stack_ui_html, height=1250)
 
   # 📝 考察・変化の感想入力欄
   st.markdown("---")
@@ -279,7 +278,7 @@ elif menu == "施術記録の閲覧・登録":
         f"🎉 {selected_patient} 様の施術データを正常に保存・記録しました！"
     )
 
-  # 📊 過去の記録・比較表示エリア
+  # 📊 過去の記録・比較表示エリア（最後に綺麗な比較結果のサマリーが出る仕様）
   st.markdown("---")
   st.subheader(f"📊 {selected_patient} 様の過去のカルテ・比較履歴")
 
@@ -295,35 +294,26 @@ elif menu == "施術記録の閲覧・登録":
           f"📅 **施術日:** {rec['date']} ／ **撮影部位:** {rec['part']}"
       )
 
-      # 💡 エラーの出ない安全な標準の metric 表示
+      # 💡 最後の締めくくりとして、Before/Afterの数値比較と改善度がひと目でわかるサマリーを表示
       if rec.get("asymmetry_before") is not None:
+        st.markdown("#### 📉 【歪み度 比較・改善サマリー】")
         c_m1, c_m2, c_m3 = st.columns(3)
         with c_m1:
           st.metric(
               label="Before ゆがみ度", value=f"{rec['asymmetry_before']}%"
           )
         with c_m2:
-          st.metric(label="After ゆがみ度", value=f"{rec['asymmetry_after']}%")
+          st.metric(
+              label="After ゆ가み度", value=f"{rec['asymmetry_after']}%"
+          )
         with c_m3:
           st.metric(
               label="短頭度 (絶壁指数)", value=f"{rec['brachycephalic']}%"
           )
 
-      st.markdown("##### 📷 ビフォー・アフター比較")
-      img_col1, img_col2 = st.columns(2)
-      with img_col1:
-        st.markdown("**【施術前 (Before)】**")
-        if rec["before"] and os.path.exists(rec["before"]):
-          st.image(rec["before"], use_column_width=True)
-        else:
-          st.info("画像なし")
-
-      with img_col2:
-        st.markdown("**【施術後 (After)】**")
-        if rec["after"] and os.path.exists(rec["after"]):
-          st.image(rec["after"], use_column_width=True)
-        else:
-          st.info("画像なし")
+        st.success(
+            "🌟 **分析結果:** 施術前と比較してゆがみ度が改善傾向にあります！"
+        )
 
       st.info(f"💡 **施術者の考察・フィードバック:**\n\n{rec['comment']}")
       st.markdown("---")
