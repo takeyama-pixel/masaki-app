@@ -70,9 +70,7 @@ elif menu == "施術記録の閲覧・登録":
   if body_part == "頭部・上面（歪み分析）" and before_file:
     st.markdown("---")
     st.markdown("### 🎯 【頭部位置・ガイド調整】")
-    st.caption(
-        "💡 下のキャンバスのツールバー（四角形や丸のアイコン）を使って、写真の上にガイド枠を自由に追加して位置を合わせられます。"
-    )
+    st.caption("写真を安全なサイズで読み込んで表示しています。")
 
     try:
       image_pil = Image.open(before_file).convert("RGB")
@@ -91,18 +89,17 @@ elif menu == "施術記録の閲覧・登録":
           (canvas_w, canvas_h), Image.Resampling.LANCZOS
       )
 
-      # 💡 ユーザー自身で自由に枠（四角や丸・線）を描き込めるようにツールバーを表示
+      # 💡 エラーの出ない最もシンプルなキャンバス設定
       canvas_result = st_canvas(
-          fill_color="rgba(255, 165, 0, 0.2)",
-          stroke_width=3,
+          fill_color="rgba(255, 165, 0, 0.3)",
+          stroke_width=2,
           stroke_color="#00FF00",
           background_image=image_resized,
           update_streamlit=True,
           height=canvas_h,
           width=canvas_w,
-          drawing_mode="rect",  # 四角形を描画するモード（または "transform" の代わりに枠を描ける）
-          display_toolbar=True,  # ← 画面上に描画ツールバーを表示！
-          key="canvas_with_toolbar",
+          drawing_mode="rect",
+          key="safe_canvas_v8",
       )
     except Exception as e:
       st.error(f"画像の読み込みに失敗しました: {e}")
