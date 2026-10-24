@@ -9,7 +9,7 @@ import streamlit as st
 UPLOAD_DIR = "uploaded_images"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-st.title("整体院 ビフォーアフター管理アプリ (頭部歪み分析対応版)")
+st.title("整体院 ビフォーアフター管理アプリ (頭部歪み分析対応)")
 st.write("マサキ医院長向け / 開発：石川副委員長")
 
 # サイドメニュー：患者選択・登録
@@ -47,7 +47,7 @@ elif menu == "施術記録の閲覧・登録":
     st.write(f"**対象患者:** {selected_patient}")
     visit_date = st.date_input("施術日", datetime.today())
 
-    # 撮影部位に「頭部・上面（歪み分析）」を追加
+    # 撮影部位
     body_part = st.selectbox(
         "撮影部位",
         ["骨盤矯正", "腰椎", "肩・首", "全身・正面", "頭部・上面（歪み分析）"],
@@ -73,6 +73,7 @@ elif menu == "施術記録の閲覧・登録":
   if submitted:
     b_path, a_path = "", ""
     analysis_result = {}
+    analyzed_image_path = ""
 
     if before_file:
       b_path = os.path.join(
@@ -81,14 +82,14 @@ elif menu == "施術記録の閲覧・登録":
       with open(b_path, "wb") as f:
         f.write(before_file.getbuffer())
 
-      # 【追加機能】「頭部・上面」が選ばれた場合、簡易的な歪み（非対称）分析を実行
+      # 【機能①・②の統合】「頭部・上面」が選ばれた場合、画像に分析線を引く＋数値を計算
       if body_part == "頭部・上面（歪み分析）":
         try:
           image_pil = Image.open(b_path).convert("RGB")
           img_np = np.array(image_pil)
           gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
 
-          # 2値化処理（頭部領域を抽出する簡易イメージ）
+          # 2値化処理と輪郭抽出
           _, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY_INV)
           contours, _ = cv2.findContours(
               thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
@@ -97,17 +98,45 @@ elif menu == "施術記録の閲覧・登録":
           if contours:
             c = max(contours, key=cv2.contourArea)
             if len(c) >= 5:
-              # 外接楕円をフィッティングして長径と短径の比率から歪み率を算出
+              # 外接楕円のフィッティング
               ellipse = cv2.fitEllipse(c)
+
+              # 画像に中心軸（十字線）と楕円を描画する
+              analyzed_img = img_np.copy()
+              cv2.ellipse(analyzed_img, ellipse, (0, 255, 0), 3)  # 緑色の輪郭
+              # 重心（中心点）の取得
+              center = (int(ellipse[0][0]), int(ellipse[0][1]))
+              # 十字の中心線を描画
+              cv2.line(
+                  analyzed_img,
+                  (center[0], 0),
+                  (center[0], analyzed_img.shape[0]),
+                  (255, 0, 0),
+                  2,
+              )  # 縦線（青）
+              cv2.line(
+                  analyzed_img,
+                  (0, center[1]),
+                  (analyzed_img.shape[1], center[1]),
+                  (255, 0, 0),
+                  2,
+              )  # 横線（青）
+
+              # 加工した画像を保存
+              analyzed_image_path = os.path.join(
+                  UPLOAD_DIR, f"analyzed_{selected_patient}_{visit_date}.jpg"
+              )
+              Image.fromarray(analyzed_img).save(analyzed_image_path)
+
+              # 歪み率（%）の算出
               axes_ratio = (
                   min(ellipse[1]) / max(ellipse[1])
                   if max(ellipse[1]) > 0
                   else 1.0
               )
-              asymmetry_score = round(
-                  (1.0 - axes_ratio) * 100, 1
-              )  # 歪み率（%）
+              asymmetry_score = round((1.0 - axes_ratio) * 100, 1)
               analysis_result["asymmetry_score"] = asymmetry_score
+              analysis_result["analyzed_image"] = analyzed_image_path
         except Exception as e:
           analysis_result["error"] = str(e)
 
@@ -145,7 +174,7 @@ elif menu == "施術記録の閲覧・登録":
           f"**施術日:** {rec['date']} ／ **部位:** {rec['part']}"
       )
 
-      # 分析結果がある場合の表示
+      # 分析結果がある場合の表示（大きなメーター表示）
       if "analysis" in rec and rec["analysis"]:
         if "asymmetry_score" in rec["analysis"]:
           st.metric(
@@ -155,9 +184,15 @@ elif menu == "施術記録の閲覧・登録":
 
       c1, c2 = st.columns(2)
       with c1:
-        st.text("【Before】")
-        if rec["before"] and os.path.exists(rec["before"]):
-          st.image(rec["before"], use_column_width=True)
+        st.text("【Before（分析線入り）】")
+        # もし分析済みの画像があればそちらを表示、なければ通常のBeforeを表示
+        target_img = (
+            rec["analysis"].get("analyzed_image")
+            if (rec.get("analysis") and "analyzed_image" in rec["analysis"])
+            else rec["before"]
+        )
+        if target_img and os.path.exists(target_img):
+          st.image(target_img, use_column_width=True)
         else:
           st.write("画像なし")
 
