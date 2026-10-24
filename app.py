@@ -18,7 +18,7 @@ menu = st.sidebar.selectbox(
     "メニュー選択", ["施術記録の閲覧・登録", "新規患者の登録"]
 )
 
-# 仮の患者データ（本来はDBやファイルで管理）
+# 仮の患者データ
 if "patients" not in st.session_state:
   st.session_state["patients"] = ["山田 太郎", "佐藤 花子", "鈴木 一郎"]
 
@@ -38,7 +38,6 @@ if menu == "新規患者の登録":
 elif menu == "施術記録の閲覧・登録":
   st.subheader("ビフォーアフター & 歪み分析記録")
 
-  # 患者選択
   selected_patient = st.selectbox(
       "患者を選択してください", st.session_state["patients"]
   )
@@ -47,7 +46,6 @@ elif menu == "施術記録の閲覧・登録":
     st.write(f"**対象患者:** {selected_patient}")
     visit_date = st.date_input("施術日", datetime.today())
 
-    # 撮影部位
     body_part = st.selectbox(
         "撮影部位",
         ["骨盤矯正", "腰椎", "肩・首", "全身・正面", "頭部・上面（歪み分析）"],
@@ -82,15 +80,25 @@ elif menu == "施術記録の閲覧・登録":
       with open(b_path, "wb") as f:
         f.write(before_file.getbuffer())
 
-      # 【機能①・②の統合】「頭部・上面」が選ばれた場合、画像に分析線を引く＋数値を計算
+      # 【魔法のコード】「頭部・上面」が選ばれた場合、中心部を切り抜いて分析
       if body_part == "頭部・上面（歪み分析）":
         try:
           image_pil = Image.open(b_path).convert("RGB")
           img_np = np.array(image_pil)
-          gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+          h, w, _ = img_np.shape
+
+          # 魔法の前処理：周辺（手や服）をカットし、中央付近（頭部エリア）だけを抽出
+          # 画像の縦横の中央から、例えば 60% の範囲を切り抜く
+          margin_h = int(h * 0.15)
+          margin_w = int(w * 0.2)
+          cropped_img = img_np[
+              margin_h : h - margin_h, margin_w : w - margin_w
+          ]
+
+          gray = cv2.cvtColor(cropped_img, cv2.COLOR_RGB2GRAY)
 
           # 2値化処理と輪郭抽出
-          _, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY_INV)
+          _, thresh = cv2.threshold(gray, 110, 255, cv2.THRESH_BINARY_INV)
           contours, _ = cv2.findContours(
               thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
           )
@@ -98,15 +106,14 @@ elif menu == "施術記録の閲覧・登録":
           if contours:
             c = max(contours, key=cv2.contourArea)
             if len(c) >= 5:
-              # 外接楕円のフィッティング
+              # 切り抜いた画像上で楕円をフィッティング
               ellipse = cv2.fitEllipse(c)
 
-              # 画像に中心軸（十字線）と楕円を描画する
-              analyzed_img = img_np.copy()
-              cv2.ellipse(analyzed_img, ellipse, (0, 255, 0), 3)  # 緑色の輪郭
-              # 重心（中心点）の取得
+              # 描画用に対象画像をコピー
+              analyzed_img = cropped_img.copy()
+              cv2.ellipse(analyzed_img, ellipse, (0, 255, 0), 3)  # 緑の輪郭
+
               center = (int(ellipse[0][0]), int(ellipse[0][1]))
-              # 十字の中心線を描画
               cv2.line(
                   analyzed_img,
                   (center[0], 0),
@@ -174,18 +181,16 @@ elif menu == "施術記録の閲覧・登録":
           f"**施術日:** {rec['date']} ／ **部位:** {rec['part']}"
       )
 
-      # 分析結果がある場合の表示（大きなメーター表示）
       if "analysis" in rec and rec["analysis"]:
         if "asymmetry_score" in rec["analysis"]:
           st.metric(
-              label="頭部 上面歪み指数 (簡易算出)",
+              label="頭部 上面歪み指数 (中心抽出・簡易算出)",
               value=f"{rec['analysis']['asymmetry_score']} %",
           )
 
       c1, c2 = st.columns(2)
       with c1:
-        st.text("【Before（分析線入り）】")
-        # もし分析済みの画像があればそちらを表示、なければ通常のBeforeを表示
+        st.text("【Before（中心検出・分析線入り）】")
         target_img = (
             rec["analysis"].get("analyzed_image")
             if (rec.get("analysis") and "analyzed_image" in rec["analysis"])
