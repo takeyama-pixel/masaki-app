@@ -65,10 +65,10 @@ elif menu == "施術記録の閲覧・登録":
   if body_part == "頭部・上面（歪み分析）" and (before_file or after_file):
     st.markdown("---")
     st.markdown(
-        "### 🎯 【Before / After 8方向フィット調整 & リアルタイム分析】"
+        "### 🎯 【Before / After 8方向フィット & 位置調整パネル】"
     )
     st.caption(
-        "回転させるのではなく、上下・左右および斜め4方向のふくらみ（8方向）を個別に調整していびつな形に合わせられます。"
+        "位置スライダーで枠全体を頭に合わせ、8方向スライダーでいびつな形にフィットさせてください。"
     )
 
     # 画像をそれぞれ一時保存してBase64化
@@ -93,7 +93,7 @@ elif menu == "施術記録の閲覧・登録":
       with open(a_path_tmp, "rb") as f:
         a_data_url = f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode('utf-8')}"
 
-    # 💡 8方向（東西南北＋斜め4方向）の長さを自由に変えていびつな形にフィットさせるHTML/JS
+    # 💡 8方向調整 ＋ 位置調整（X, Y）スライダーを備え、数値が見切れないように高さをゆったり確保したUI
     eight_dir_ui_html = f"""
         <!DOCTYPE html>
         <html lang="ja">
@@ -111,7 +111,7 @@ elif menu == "施術記録の閲覧・登録":
                 .controls {{ margin-top: 12px; display: grid; gap: 8px; font-size: 12px; }}
                 .control-group {{ display: flex; flex-direction: column; font-weight: bold; color: #475569; }}
                 .control-group input {{ width: 100%; margin-top: 2px; cursor: pointer; }}
-                .metric-box {{ background: #f8fafc; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; margin-top: 12px; }}
+                .metric-box {{ background: #f8fafc; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; margin-top: 15px; margin-bottom: 5px; }}
                 .metric-val {{ font-size: 20px; font-weight: bold; color: #0284c7; margin: 2px 0; }}
                 .progress-bar {{ width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin-top: 6px; }}
                 .progress-fill {{ height: 100%; background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444); transition: width 0.1s; }}
@@ -121,14 +121,16 @@ elif menu == "施術記録の閲覧・登録":
             <div class="container">
                 <!-- BEFORE PANEL -->
                 <div class="card">
-                    <div class="card-title" style="color:#2563eb;">【Before 測定パネル（8方向調整）】</div>
+                    <div class="card-title" style="color:#2563eb;">【Before 測定パネル】</div>
                     <div class="canvas-container">
                         <img src="{b_data_url}" class="bg-image">
-                        <div id="shapeB" class="guide-shape" style="width: 160px; height: 180px; border-radius: 50% 50% 50% 50%;"></div>
+                        <div id="shapeB" class="guide-shape" style="width: 160px; height: 180px; border-radius: 50% 50% 50% 50%; transform: translate(0px, 0px);"></div>
                     </div>
                     <div class="controls">
                         <div class="control-group"><label>上下幅 (縦): <span id="hValB">180</span>px</label><input type="range" id="hB" min="60" max="240" step="2" value="180" oninput="updateB()"></div>
                         <div class="control-group"><label>左右幅 (横): <span id="wValB">160</span>px</label><input type="range" id="wB" min="60" max="240" step="2" value="160" oninput="updateB()"></div>
+                        <div class="control-group"><label>左右位置 (X): <span id="xValB">0</span>px</label><input type="range" id="xB" min="-80" max="80" step="2" value="0" oninput="updateB()"></div>
+                        <div class="control-group"><label>上下位置 (Y): <span id="yValB">0</span>px</label><input type="range" id="yB" min="-80" max="80" step="2" value="0" oninput="updateB()"></div>
                         <div class="control-group"><label>北西・左上 (NW): <span id="nwValB">50</span>%</label><input type="range" id="nwB" min="10" max="90" step="2" value="50" oninput="updateB()"></div>
                         <div class="control-group"><label>北東・右上 (NE): <span id="neValB">50</span>%</label><input type="range" id="neB" min="10" max="90" step="2" value="50" oninput="updateB()"></div>
                         <div class="control-group"><label>南東・右下 (SE): <span id="seValB">50</span>%</label><input type="range" id="seB" min="10" max="90" step="2" value="50" oninput="updateB()"></div>
@@ -143,14 +145,16 @@ elif menu == "施術記録の閲覧・登録":
 
                 <!-- AFTER PANEL -->
                 <div class="card">
-                    <div class="card-title" style="color:#db2777;">【After 測定パネル（8方向調整）】</div>
+                    <div class="card-title" style="color:#db2777;">【After 測定パネル】</div>
                     <div class="canvas-container">
                         <img src="{a_data_url}" class="bg-image">
-                        <div id="shapeA" class="guide-shape" style="width: 155px; height: 175px; border-radius: 50% 50% 50% 50%; border-color:#38bdf8;"></div>
+                        <div id="shapeA" class="guide-shape" style="width: 155px; height: 175px; border-radius: 50% 50% 50% 50%; border-color:#38bdf8; transform: translate(0px, 0px);"></div>
                     </div>
                     <div class="controls">
                         <div class="control-group"><label>上下幅 (縦): <span id="hValA">175</span>px</label><input type="range" id="hA" min="60" max="240" step="2" value="175" oninput="updateA()"></div>
                         <div class="control-group"><label>左右幅 (横): <span id="wValA">155</span>px</label><input type="range" id="wA" min="60" max="240" step="2" value="155" oninput="updateA()"></div>
+                        <div class="control-group"><label>左右位置 (X): <span id="xValA">0</span>px</label><input type="range" id="xA" min="-80" max="80" step="2" value="0" oninput="updateA()"></div>
+                        <div class="control-group"><label>上下位置 (Y): <span id="yValA">0</span>px</label><input type="range" id="yA" min="-80" max="80" step="2" value="0" oninput="updateA()"></div>
                         <div class="control-group"><label>北西・左上 (NW): <span id="nwValA">50</span>%</label><input type="range" id="nwA" min="10" max="90" step="2" value="50" oninput="updateA()"></div>
                         <div class="control-group"><label>北東・右上 (NE): <span id="neValA">50</span>%</label><input type="range" id="neA" min="10" max="90" step="2" value="50" oninput="updateA()"></div>
                         <div class="control-group"><label>南東・右下 (SE): <span id="seValA">50</span>%</label><input type="range" id="seA" min="10" max="90" step="2" value="50" oninput="updateA()"></div>
@@ -168,6 +172,8 @@ elif menu == "施術記録の閲覧・登録":
                 function updateB() {{
                     let w = document.getElementById('wB').value;
                     let h = document.getElementById('hB').value;
+                    let x = document.getElementById('xB').value;
+                    let y = document.getElementById('yB').value;
                     let nw = document.getElementById('nwB').value;
                     let ne = document.getElementById('neB').value;
                     let se = document.getElementById('seB').value;
@@ -175,6 +181,8 @@ elif menu == "施術記録の閲覧・登録":
 
                     document.getElementById('wValB').innerText = w;
                     document.getElementById('hValB').innerText = h;
+                    document.getElementById('xValB').innerText = x;
+                    document.getElementById('yValB').innerText = y;
                     document.getElementById('nwValB').innerText = nw;
                     document.getElementById('neValB').innerText = ne;
                     document.getElementById('seValB').innerText = se;
@@ -183,7 +191,7 @@ elif menu == "施術記録の閲覧・登録":
                     let el = document.getElementById('shapeB');
                     el.style.width = w + 'px';
                     el.style.height = h + 'px';
-                    // 8方向の丸み（border-radius）を個別に変更していびつな形にフィットさせる
+                    el.style.transform = `translate(${{x}}px, ${{y}}px)`;
                     el.style.borderRadius = `${{nw}}% ${{100-ne}}% ${{se}}% ${{100-sw}}% / ${{nw}}% ${{ne}}% ${{100-se}}% ${{100-sw}}%`;
 
                     let diff = Math.abs(nw - se) + Math.abs(ne - sw);
@@ -195,6 +203,8 @@ elif menu == "施術記録の閲覧・登録":
                 function updateA() {{
                     let w = document.getElementById('wA').value;
                     let h = document.getElementById('hA').value;
+                    let x = document.getElementById('xA').value;
+                    let y = document.getElementById('yA').value;
                     let nw = document.getElementById('nwA').value;
                     let ne = document.getElementById('neA').value;
                     let se = document.getElementById('seA').value;
@@ -202,6 +212,8 @@ elif menu == "施術記録の閲覧・登録":
 
                     document.getElementById('wValA').innerText = w;
                     document.getElementById('hValA').innerText = h;
+                    document.getElementById('xValA').innerText = x;
+                    document.getElementById('yValA').innerText = y;
                     document.getElementById('nwValA').innerText = nw;
                     document.getElementById('neValA').innerText = ne;
                     document.getElementById('seValA').innerText = se;
@@ -210,6 +222,7 @@ elif menu == "施術記録の閲覧・登録":
                     let el = document.getElementById('shapeA');
                     el.style.width = w + 'px';
                     el.style.height = h + 'px';
+                    el.style.transform = `translate(${{x}}px, ${{y}}px)`;
                     el.style.borderRadius = `${{nw}}% ${{100-ne}}% ${{se}}% ${{100-sw}}% / ${{nw}}% ${{ne}}% ${{100-se}}% ${{100-sw}}%`;
 
                     let diff = Math.abs(nw - se) + Math.abs(ne - sw);
@@ -221,7 +234,7 @@ elif menu == "施術記録の閲覧・登録":
         </body>
         </html>
         """
-    components.html(eight_dir_ui_html, height=1400)
+    components.html(eight_dir_ui_html, height=1650)
 
   # 📝 考察・変化の感想入力欄
   st.markdown("---")
@@ -296,7 +309,7 @@ elif menu == "施術記録の閲覧・登録":
           f"📅 **施術日:** {rec['date']} ／ **撮影部位:** {rec['part']}"
       )
 
-      # 💡 最後の締めくくりとして、Before/Afterの数値比較サマリーを表示
+      # 💡 最後の締めくくりとしての数値比較サマリー
       if rec.get("asymmetry_before") is not None:
         st.markdown("#### 📉 【歪み度 比較・改善サマリー】")
         c_m1, c_m2, c_m3 = st.columns(3)
